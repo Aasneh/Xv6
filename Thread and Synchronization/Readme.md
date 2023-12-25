@@ -315,3 +315,129 @@ int main(int argc, char *argv[])
 ![Alt text](pic1.png)
 
 * The shared balance is incorrect and different every time due to lack of synchronization while updating the shared variable **total_balance**.
+## :closed_lock_with_key: Synchronization
+* We were not able to get the correct output for shared balance in the last balance as it might have happened that both the threads might have updated the shared variable **total_balance** simultaneously.
+* To fix this, we make the update function atomic so that only a single thread can perform it at a time.
+* **SpinLocks** allow only a single thread to access the critical section of the code.
+* A single thread is granted the request while others are blocked and have to wait until it frees it, before other can acquire it. This helps in mutual exclusion.
+### Implementing SpinLocks
+```C
+struct thread_spinlock
+{
+    uint lock;
+};
+```
+* Value **0** indicates that the lock is free and can be acquired.
+* Value **1** indicates that the lock is currently being used by some process/thread and the process that requires it must wait.
+```C
+void thread_spin_init(struct thread_spinlock *lk)
+{
+    lk->lock = 0;
+}
+```
+* Initialise the lock to set it's value to 0, indicating it is free.
+```C
+void thread_spin_lock(struct thread_spinlock *lk)
+{
+    while (xchg(&lk->lock, 1) != 0)
+        ;
+    __sync_synchronize();
+}
+```
+* We make use of the **xchg** function which atomically exchanges 2 values and returns the old value of lock.
+* We set the value of lock to **1** everytime we call the xchg function and check if the old value was **0** or not, which indicates it was free.
+* An old value of **1** indicates that the lock is currently in use and cannot be acquired.
+* The __sync_synchronize() function in xv6 is a memory barrier. It tells the compiler and CPU to not reorder loads or stores across the barrier. This is important for ensuring that data is consistent between different threads or processes.
+```C
+void thread_spin_unlock(struct thread_spinlock *lk)
+{
+    __sync_synchronize();
+    asm volatile("movl $0, %0" : "+m"(lk->lock) :);
+}
+```
+* We atomically set the value of lock to be **0**, indicating it is free.
+### Testing 
+Modified **test_thread.c** to incorporate locking mechanism.
+```C
+#include "types.h"
+#include "stat.h"
+#include "user.h"
+#include "x86.h"
+
+struct balance
+{
+    char name[32];
+    int amount;
+};
+
+struct thread_spinlock
+{
+    uint lock;
+};
+struct thread_spinlock *lk;
+void thread_spin_init(struct thread_spinlock *lk)
+{
+    lk->lock = 0;
+}
+
+void thread_spin_lock(struct thread_spinlock *lk)
+{
+    while (xchg(&lk->lock, 1) != 0)
+        ;
+    __sync_synchronize();
+}
+void thread_spin_unlock(struct thread_spinlock *lk)
+{
+    __sync_synchronize();
+    asm volatile("movl $0, %0" : "+m"(lk->lock) :);
+}
+
+volatile int total_balance = 0;
+volatile unsigned int delay(unsigned int d)
+{
+    unsigned int i;
+    for (i = 0; i < d; i++)
+    {
+        __asm volatile("nop" :::);
+    }
+    return i;
+}
+void do_work(void *arg)
+{
+    int i;
+    int old;
+    struct balance *b = (struct balance *)arg;
+    printf(1, "Starting do_work: s:%s\n", b->name);
+    for (i = 0; i < b->amount; i++)
+    {
+        // thread_spin_lock(lk);
+        old = total_balance;
+        delay(100000);
+        total_balance = old + 1;
+        // thread_spin_unlock(lk);
+    }
+    printf(1, "Done s:%x\n", b->name);
+    thread_exit();
+    return;
+}
+int main(int argc, char *argv[])
+{
+    thread_spin_init(lk);
+    struct balance b1 = {"b1", 3200};
+    struct balance b2 = {"b2", 2800};
+    void *s1, *s2;
+    int t1, t2, r1, r2;
+    s1 = malloc(4096);
+    s2 = malloc(4096);
+    t1 = thread_create(do_work, (void *)&b1, s1);
+    t2 = thread_create(do_work, (void *)&b2, s2);
+    r1 = thread_join();
+    r2 = thread_join();
+    printf(1, "Threads finished: (%d):%d, (%d):%d, shared balance:%d\n",
+           t1, r1, t2, r2, total_balance);
+    exit();
+}
+```
+### Results
+![Alt text](pic2.png)
+* The shared balance is correct (3200+2800 = 6000) every time.
