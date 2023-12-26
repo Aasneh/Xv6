@@ -263,7 +263,8 @@ void scheduler(void)
 *  We set the state of the process to **RUNNING** and context switch from scheduler thread to process.
 *  Later when the process ends/ preempted by kernel, we context switch back to kernel scheduler thread by **switchkvm()**.
 ### Results.
-* Testing on **test_sched.c**
+* Testing on **test_sched.c**. <br>
+
 ![Alt text](pic_22.png)
 
 * All CPU bound processes have 1 context switch as scheduling is non preemptive and cpu doesnt switch to another process until execution of current process has been completed.
@@ -426,7 +427,8 @@ for (int i = 0; i < idx; i++)
 }
 ```
 ### Results.
-* Testing on **test_sched.c**
+* Testing on **test_sched.c** <br>
+
 ![Alt text](pic_23.png)
 
 * Context switches for CPU bound processes are not 1 since they are preempted but are still in order of their burst times.
