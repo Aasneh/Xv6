@@ -2,7 +2,7 @@
 
 ##  :beginner: Overview
 * This section is an attempt to implement **Kernel level Threads** and **Spinlocks** for it's synchronization and correctness. <br>
-* Threads ar very similar to processes. They allow for parallel execution and share same address space. <br>
+* Threads are very similar to processes. They allow for parallel execution and share same address space. <br>
 * Threads of a process have different stack, registers, program counters and state. <br>
 * Locks are a common way to ensure that access(read/write) to shared data occurs appropriately and correctly. <br>
 
