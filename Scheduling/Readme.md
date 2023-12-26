@@ -122,3 +122,18 @@ int burst_time;              // Burst Time of Process
      return cur_proc->burst_time;
    }
    ```
+5) ### Finishing up
+* To add all the above system calls, add them appropropriately in :
+   * defs.h
+   * syscall.h
+   * syscall.c
+   * sysproc.c
+   * user.h
+   * usys.S
+* To test them, I made the following files and added them appropriately in Makefile :
+   * test_getNumProc.c
+   * test_getMaxPid.c
+   * test_getProcInfo.c
+   * test_set_burst_time.c
+   * test_get_burst_time.c
+##  :brain: Scheduling
