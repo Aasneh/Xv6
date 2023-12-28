@@ -43,4 +43,118 @@ growproc(int n)
   return 0;
 }
 ```
+* The growproc() function in turn calls the allocuvm/deallocuvm functions which allocate/deallocate pages and updates the page table of the process.
+* The kernel maintains a list of free pages with the help of **freelist**
+```C
+struct run {
+  struct run *next;
+};
+
+struct {
+  struct spinlock lock;
+  int use_lock;
+  struct run *freelist;
+} kmem;
+```
+* ** void kfree() function.
+```C
+void
+kfree(char *v)
+{
+  struct run *r;
+
+  if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
+    panic("kfree");
+
+  // Fill with junk to catch dangling refs.
+  memset(v, 1, PGSIZE);
+
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  r = (struct run*)v;
+  r->next = kmem.freelist;
+  kmem.freelist = r;
+  if(kmem.use_lock)
+    release(&kmem.lock);
+}
+```
+* To free a page, we first check if it is after **kernel memory** ends and before the end of **physical memory**.
+* We then just fill it with 1s and move the **kmem.freelist** to point to it and adjust other pointers accordingly.
+* ** void kalloc() function.
+```C
+char*
+kalloc(void)
+{
+  struct run *r;
+
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  r = kmem.freelist;
+  if(r)
+    kmem.freelist = r->next;
+  if(kmem.use_lock)
+    release(&kmem.lock);
+  return (char*)r;
+}
+```
+* Allocates one **4096-byte** page of physical memory.
+* We just return the page pointed by **kmem.freelist** and move the pointer to the next element.
+```C
+int
+allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+{
+  char *mem;
+  uint a;
+
+  if(newsz >= KERNBASE)
+    return 0;
+  if(newsz < oldsz)
+    return oldsz;
+
+  a = PGROUNDUP(oldsz);
+  for(; a < newsz; a += PGSIZE){
+    mem = kalloc();
+    if(mem == 0){
+      cprintf("allocuvm out of memory\n");
+      deallocuvm(pgdir, newsz, oldsz);
+      return 0;
+    }
+    memset(mem, 0, PGSIZE);
+    if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+      cprintf("allocuvm out of memory (2)\n");
+      deallocuvm(pgdir, newsz, oldsz);
+      kfree(mem);
+      return 0;
+    }
+  }
+  return newsz;
+}
+```
+* To allocate new pages and add it's entry to the page table of the process we make use of **allocuvm**.
+* It goes through the required pages, allocates them physical memory using **kalloc** and adds it entry in page table using **mappages**.
+```C
+static int
+mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
+{
+  char *a, *last;
+  pte_t *pte;
+
+  a = (char*)PGROUNDDOWN((uint)va);
+  last = (char*)PGROUNDDOWN(((uint)va) + size - 1);
+  for(;;){
+    if((pte = walkpgdir(pgdir, a, 1)) == 0)
+      return -1;
+    if(*pte & PTE_P)
+      panic("remap");
+    *pte = pa | perm | PTE_P;
+    if(a == last)
+      break;
+    a += PGSIZE;
+    pa += PGSIZE;
+  }
+  return 0;
+}
+```
+* It creates page table entry for virtual address starting at **va** that refer to physical address starting at **pa**.
+* We basically go through the page table using the **walkpgdir** call ad check if the virtual address has been allocated or not. We then just set the the entry for **va** to point to **pa**, set its **Page table entry Present** and other permissions as required.
 * 
