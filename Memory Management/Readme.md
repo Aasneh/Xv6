@@ -157,4 +157,13 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 ```
 * It creates page table entry for virtual address starting at **va** that refer to physical address starting at **pa**.
 * We basically go through the page table using the **walkpgdir** call ad check if the virtual address has been allocated or not. We then just set the the entry for **va** to point to **pa**, set its **Page table entry Present** and other permissions as required.
-* 
+* Xv6 uses 2 level page hierarchy as shown in the image below.
+![Alt text](pic_31.png)
+* Given is a rough view of the virtual memory in Xv6.
+![Alt text](pic_32.png)
+* A process’s user memory starts at virtual address zero and can grow up to KERNBASE.
+* Xv6 includes all mappings needed for the kernel to run in every process’s page table; these mappings all appear above KERNBASE. It maps virtual addresses KERNBASE:KERNBASE+PHYSTOP to 0:PHYSTOP.
+* Having every process’s page table contain mappings for both user memory and PHYSTOP+code the entire kernel is convenient when switching from user code to kernel code during
+system calls and interrupts: such switches do not require page table switches. For the
+most part the kernel does not have its own page table; it is almost always borrowing 
+some process’s page table.
