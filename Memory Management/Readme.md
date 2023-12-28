@@ -188,9 +188,9 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 * Then, the **PTX** gives the next 10 bits to get the corresponding entry in the page table obtained above and returns it.
 * If the corresponding page table enrty is present we store the pointer in **pgtab**, else we create an entry, and return the pointer.
 * Xv6 uses 2 level page hierarchy as shown in the image below. <br>
-![Alt text](pic_31.png)
+![Alt text](pic_31.png)<br>
 * Given is a rough view of the virtual memory in Xv6. <br>
-![Alt text](pic_32.png)
+![Alt text](pic_32.png)<br>
 * A process’s user memory starts at virtual address zero and can grow up to KERNBASE.
 * Xv6 includes all mappings needed for the kernel to run in every process’s page table; these mappings all appear above KERNBASE. It maps virtual addresses KERNBASE:KERNBASE+PHYSTOP to 0:PHYSTOP.
 * Having every process’s page table contain mappings for both user memory and PHYSTOP+code the entire kernel is convenient when switching from user code to kernel code during
@@ -260,7 +260,7 @@ int PageFaultHandle()
 * If it succeeds we add an entry of it to the process' **page table**.
 * If the routine succeeds we return **0**, else we return **-1** in case of any errors.
 ###  :beginner: Testing and Conclusion
-![AltText](pic_33.png)
+![AltText](pic_33.png)<br>
 * As we can see when we run the commands **ls** and **ps**, we encounter Page Fault, which are subsequently handled correctly and get correct output.
 ##  :beginner: Basic Implementation of Paging Mechanism in Xv6
 * An important feature lacking in Xv6 is the ability to **swap out pages to a backing store**. That is, at each moment in time all processes are held within the main (physical) memory.
@@ -646,6 +646,6 @@ int main(int argc, char* argv[]){
 }
 ```
 ###  :beginner: Results
-![ALT_TEXT](ppic_34.png)
+![ALT_TEXT](pic_34.png) <br>
 * To further test the implementation, change **PHYSTOP** to **0x0400000**, the code still works.
 
