@@ -197,7 +197,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 system calls and interrupts: such switches do not require page table switches. For the
 most part the kernel does not have its own page table; it is almost always borrowing 
 some process’s page table.
-##  :beginner: Basic Implementation of Lazy Memory Allocation
+##  :floppy_disk: Basic Implementation of Lazy Memory Allocation
 * We will add support for this lazy allocation feature in Xv6, by delaying the memory requested by sbrk() until the process actually uses it.
 ```C
 int sys_sbrk(void)
@@ -259,14 +259,14 @@ int PageFaultHandle()
 * We try to allocate a page to it via **kalloc**.
 * If it succeeds we add an entry of it to the process' **page table**.
 * If the routine succeeds we return **0**, else we return **-1** in case of any errors.
-###  :beginner: Testing and Conclusion
+###  :microscope: Testing and Conclusion
 ![AltText](pic_33.png)<br>
 * As we can see when we run the commands **ls** and **ps**, we encounter Page Fault, which are subsequently handled correctly and get correct output.
-##  :beginner: Basic Implementation of Paging Mechanism in Xv6
+##  :brain: Basic Implementation of Paging Mechanism in Xv6
 * An important feature lacking in Xv6 is the ability to **swap out pages to a backing store**. That is, at each moment in time all processes are held within the main (physical) memory.
 * In this task, we implement a paging mechanism for xv6 which is capable of swapping out pages and storing these to disk.
 * Each swapped out page will be saved on a dedicated file whose name is the same as the process' pid and 20 MSB of virtual address (e.g., “<pid>_<VA[20:]>.swp”).
-###  :beginner: Kernel Process
+###  :construction: Kernel Process
 * In order to implement paging mechanism, we will use a kernel process (i.e., the processes that whole their “life” reside inside kernel mode).
 * **void create_kernel_process()**
 ```C
@@ -297,7 +297,7 @@ void create_kernel_process(const char *name, void (*entrypoint)())
 between 0 and **PHYSTOP**.
 * We set the **eip** (pointer of the next instruction to be executed) to the input function, and then copy the input name to the name of the process using **safestrcpy**.
 * We finally set the state of the process to **RUNNABLE**.
-###  :beginner: Swapping Out Mechanism
+###  :inbox_tray: Swapping Out Mechanism
 * Whenever a kernel tries to allocate memory for a process and fails (due to the lack of free physical memory), the process must be suspended from execution (i.e., the process state must be changed to SLEEPING).
 * Next, a request (task) for a free page must be submitted to the kernel swapping out process.
 * When a kernel swapping out process will receive this task, it will save the content of one of currently allocated pages to the disk, remove the corresponding present bit from a PTE, mark the page as swapped out and finally mark this page as a free page.
@@ -484,7 +484,7 @@ void Swap_Out_Function(void)
 * If we find such a page, we open the appropriate file and write it's contents into it.
 * We free the corresponding page, mark it's entry as not present(**PTE_P**) and set the bit **(0x80)** to remember that this page had been swapped out.
 * We copied the open, write, read, close functions from **sysfile.c** to **proc.c** and modified them and renamed them to file_open, file_read, file_write and file_close.
-###  :beginner: Swapping In Mechanism
+###  :outbox_tray: Swapping In Mechanism
 * When the kernel detects a page fault, it must check if the cause of this page fault is in swapping out mechanism.
 * If the page was actually swapped out, the kernel must suspend current process from execution and submit a swapping in task to corresponding kernel process.
 * When a swapping inkernel process will receive a task, it will allocate a single page of physical memory, fill it with the corresponding content (that was swapped out) and finally map this page to a given virtual address.
@@ -589,7 +589,7 @@ void Swap_In_Function(void)
 * We get a free page, using **kalloc** and copy the contents from the swap file into this free page and using **mappages()**, we map the the virtual address to the allocated page.
 * We finally wakeup the process that had been put to sleep on the sleeping channel.
 * After the **swap_in_queue** becomes empty, we just follow the general cleaning up as before and exit.
-###  :beginner: Sanity Test
+###  :microscope: Sanity Test
 * We have written **test_sanity.c** to test out our implementation.
 * **test_sanity.c**
 ```C
@@ -645,7 +645,7 @@ int main(int argc, char* argv[]){
 
 }
 ```
-###  :beginner: Results
+###  :desktop_computer: Results
 ![ALT_TEXT](pic_34.png) <br>
 * To further test the implementation, change **PHYSTOP** to **0x0400000**, the code still works.
 
