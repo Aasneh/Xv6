@@ -187,9 +187,9 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 * Since we have a two-level page table, there are two values we must get to reach the entry. The **PDX** gives the Page Directory Index from the first 10 bits of the virtual address. This gives the entry which points to the relevant page table that contains the page for this virtual address. T
 * Then, the **PTX** gives the next 10 bits to get the corresponding entry in the page table obtained above and returns it.
 * If the corresponding page table enrty is present we store the pointer in **pgtab**, else we create an entry, and return the pointer.
-* Xv6 uses 2 level page hierarchy as shown in the image below.
+* Xv6 uses 2 level page hierarchy as shown in the image below. <br>
 ![Alt text](pic_31.png)
-* Given is a rough view of the virtual memory in Xv6.
+* Given is a rough view of the virtual memory in Xv6. <br>
 ![Alt text](pic_32.png)
 * A process’s user memory starts at virtual address zero and can grow up to KERNBASE.
 * Xv6 includes all mappings needed for the kernel to run in every process’s page table; these mappings all appear above KERNBASE. It maps virtual addresses KERNBASE:KERNBASE+PHYSTOP to 0:PHYSTOP.
@@ -262,3 +262,133 @@ int PageFaultHandle()
 ###  :beginner: Testing and Conclusion
 ![AltText](pic_33.png)
 * As we can see when we run the commands **ls** and **ps**, we encounter Page Fault, which are subsequently handled correctly and get correct output.
+##  :beginner: Basic Implementation of Paging Mechanism in Xv6
+* An important feature lacking in Xv6 is the ability to **swap out pages to a backing store**. That is, at each moment in time all processes are held within the main (physical) memory.
+* In this task, we implement a paging mechanism for xv6 which is capable of swapping out pages and storing these to disk.
+* Each swapped out page will be saved on a dedicated file whose name is the same as the process' pid and 20 MSB of virtual address (e.g., “<pid>_<VA[20:]>.swp”).
+###  :beginner: Kernel Process
+* In order to implement paging mechanism, we will use a kernel process (i.e., the processes that whole their “life” reside inside kernel mode).
+* **void create_kernel_process()**
+```C
+void create_kernel_process(const char *name, void (*entrypoint)())
+{
+  struct proc *np;
+  if ((np = allocproc()) == 0)
+  {
+    panic("Process Allocation Failed!\n");
+  }
+  if ((np->pgdir = setupkvm()) == 0)
+  {
+    panic("Page Table Setup Failed!\n");
+  }
+  np->tf->eip = (uint)entrypoint;
+
+  safestrcpy(np->name, name, sizeof(np->name));
+
+  acquire(&ptable.lock);
+
+  np->state = RUNNABLE;
+
+  release(&ptable.lock);
+}
+```
+* This function allocates the process an entry in the process table using **allocproc()**.
+* It sets up the kernel part of the page table using **setupkvm()**,that will map the virtual addresses above KERNBASE to physical addresses
+between 0 and **PHYSTOP**.
+* We set the **eip** (pointer of the next instruction to be executed) to the input function, and then copy the input name to the name of the process using **safestrcpy**.
+* We finally set the state of the process to **RUNNABLE**.
+###  :beginner: Swapping Out Mechanism
+* Whenever a kernel tries to allocate memory for a process and fails (due to the lack of free physical memory), the process must be suspended from execution (i.e., the process state must be changed to SLEEPING).
+* Next, a request (task) for a free page must be submitted to the kernel swapping out process.
+* When a kernel swapping out process will receive this task, it will save the content of one of currently allocated pages to the disk, remove the corresponding present bit from a PTE, mark the page as swapped out and finally mark this page as a free page.
+* Thus, we will need to maintain a **queue** of processes that have to be swapped out. We need to create a function that handles this correctly, take out some page from the process and mark it as free.
+* **proc.c**
+```C
+struct Ready_Queue
+{
+  struct spinlock lock;
+  struct proc *queue[NPROC];
+  int head;
+  int tail;
+};
+
+void RQueue_Push(struct proc *proc, struct Ready_Queue *q)
+{
+  acquire(&q->lock);
+  q->queue[q->tail] = proc;
+  q->tail++;
+  q->tail %= NPROC;
+  release(&q->lock);
+}
+
+struct proc *RQueue_Pop(struct Ready_Queue *q)
+{
+  // acquire(&q->lock);
+  if (q->head == q->tail)
+  {
+    return 0;
+  }
+  struct proc *res = q->queue[q->head];
+  q->head++;
+  q->head %= NPROC;
+  // release(&q->lock);
+  return res;
+}
+```
+* **Ready_Queue** is a circular queue, which will maintain a list of processes that could not be allocated extra memory due to lack of free pages.
+* We have also implemented **Push** and **Pop** functions, which have their regular meaning for a queue.
+* The lock corresponding to an instance of the **Ready_Queue** must be initilaised appropriately.
+* defs.h
+```C
+struct          Ready_Queue;
+extern struct   Ready_Queue  swap_out_queue;
+extern struct   Ready_Queue  swap_in_queue;
+void            RQueue_Push(struct proc *, struct Ready_Queue *);
+struct proc     *RQueue_Pop(struct Ready_Queue *);
+```
+* When the function **kalloc** return 0, we know that page allocation to the process has failed.
+```C
+int
+allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+{
+  char *mem;
+  uint a;
+
+  if(newsz >= KERNBASE)
+    return 0;
+  if(newsz < oldsz)
+    return oldsz;
+
+  a = PGROUNDUP(oldsz);
+  for(; a < newsz; a += PGSIZE){
+    mem = kalloc();
+    if(mem == 0){
+      cprintf("allocuvm out of memory\n");
+      deallocuvm(pgdir, newsz, oldsz);
+
+      myproc()->state = SLEEPING;
+      acquire(&sleeping_channel_lock);
+      myproc()->chan = sleeping_channel;
+      sleeping_channel_count++;
+      release(&sleeping_channel_lock);
+      RQueue_Push(myproc(), &swap_out_queue);
+      if (!swap_out_function_exists)
+      {
+        swap_out_function_exists = 1;
+        create_kernel_process("SWAP_OUT", &Swap_Out_Function);
+      }
+
+      return 0;
+    }
+    memset(mem, 0, PGSIZE);
+    if(mappages(pgdir, (char*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+      cprintf("allocuvm out of memory (2)\n");
+      deallocuvm(pgdir, newsz, oldsz);
+      kfree(mem);
+      return 0;
+    }
+  }
+  return newsz;
+}
+```
+* 
