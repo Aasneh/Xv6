@@ -157,6 +157,36 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 ```
 * It creates page table entry for virtual address starting at **va** that refer to physical address starting at **pa**.
 * We basically go through the page table using the **walkpgdir** call ad check if the virtual address has been allocated or not. We then just set the the entry for **va** to point to **pa**, set its **Page table entry Present** and other permissions as required.
+```C
+pte_t *
+walkpgdir(pde_t *pgdir, const void *va, int alloc)
+{
+  pde_t *pde;
+  pte_t *pgtab;
+
+  pde = &pgdir[PDX(va)];
+  if (*pde & PTE_P)
+  {
+    pgtab = (pte_t *)P2V(PTE_ADDR(*pde));
+  }
+  else
+  {
+    if (!alloc || (pgtab = (pte_t *)kalloc()) == 0)
+      return 0;
+    // Make sure all those PTE_P bits are zero.
+    memset(pgtab, 0, PGSIZE);
+    // The permissions here are overly generous, but they can
+    // be further restricted by the permissions in the page table
+    // entries, if necessary.
+    *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
+  }
+  return &pgtab[PTX(va)];
+}
+```
+* walkpgdir() takes in a page directory and a virtual address as input and returns the page table entry of that virtual address after placing it inside the page table.
+* Since we have a two-level page table, there are two values we must get to reach the entry. The **PDX** gives the Page Directory Index from the first 10 bits of the virtual address. This gives the entry which points to the relevant page table that contains the page for this virtual address. T
+* Then, the **PTX** gives the next 10 bits to get the corresponding entry in the page table obtained above and returns it.
+* If the corresponding page table enrty is present we store the pointer in **pgtab**, else we create an entry, and return the pointer.
 * Xv6 uses 2 level page hierarchy as shown in the image below.
 ![Alt text](pic_31.png)
 * Given is a rough view of the virtual memory in Xv6.
@@ -229,3 +259,6 @@ int PageFaultHandle()
 * We try to allocate a page to it via **kalloc**.
 * If it succeeds we add an entry of it to the process' **page table**.
 * If the routine succeeds we return **0**, else we return **-1** in case of any errors.
+###  :beginner: Testing and Conclusion
+![AltText](pic_33.png)
+* As we can see when we run the commands **ls** and **ps**, we encounter Page Fault, which are subsequently handled correctly and get correct output.
