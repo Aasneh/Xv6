@@ -56,7 +56,7 @@ struct {
   struct run *freelist;
 } kmem;
 ```
-* ** void kfree() function.
+* **void kfree() function**.
 ```C
 void
 kfree(char *v)
@@ -80,7 +80,7 @@ kfree(char *v)
 ```
 * To free a page, we first check if it is after **kernel memory** ends and before the end of **physical memory**.
 * We then just fill it with 1s and move the **kmem.freelist** to point to it and adjust other pointers accordingly.
-* ** void kalloc() function.
+* **void kalloc() function**.
 ```C
 char*
 kalloc(void)
