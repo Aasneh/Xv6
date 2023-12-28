@@ -167,3 +167,65 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 system calls and interrupts: such switches do not require page table switches. For the
 most part the kernel does not have its own page table; it is almost always borrowing 
 some process’s page table.
+##  :beginner: Basic Implementation of Lazy Memory Allocation
+* We will add support for this lazy allocation feature in Xv6, by delaying the memory requested by sbrk() until the process actually uses it.
+```C
+int sys_sbrk(void)
+{
+  int addr;
+  int n;
+
+  if (argint(0, &n) < 0)
+    return -1;
+  addr = myproc()->sz;
+  myproc()->sz += n;
+  // if(growproc(n) < 0)
+  //   return -1;
+  return addr;
+}
+```
+* We just change the size of the process accordingly and **fool** the process into believeing that extra memory has been allocated to it.
+* When the process actually tries to access the page, it will encounter a **Page Fault** and generate a trap to the kernel.
+* **trap.c**
+```C
+  case T_PGFLT:
+    cprintf("PAGE FAULT ENCOUNTERED!\n");
+    if (PageFaultHandle()<0)
+    {
+      cprintf("Page Fault Procedure failed\n");
+    }
+    else
+    {
+      cprintf("Page Fault Procedure Successful\n");
+    }
+    break;
+```
+* This is the case where a trap due to **page fault** occurs and is handled by a function **PageFaultHandle()**.
+* **PageFaultHandle()**
+```C
+int PageFaultHandle()
+{
+  uint va = PGROUNDDOWN(rcr2());
+  char *mem;
+  mem = kalloc();
+  if (mem == 0)
+  {
+    cprintf("Memory Allocation Failed!\n");
+    return -1;
+  }
+  memset(mem, 0, PGSIZE);
+  pde_t *pgdir = myproc()->pgdir;
+  if (mappages(pgdir, (char *)va, PGSIZE, V2P(mem), PTE_W | PTE_U) < 0)
+  {
+    cprintf("Memory Allocation failed!\n");
+    kfree(mem);
+    return -1;
+  }
+  return 0;
+}
+```
+* **rcr2()** basically gives the address which caused the page fault.
+* **PGROUNDDOWN()** rounds it down to the nearest **page**.
+* We try to allocate a page to it via **kalloc**.
+* If it succeeds we add an entry of it to the process' **page table**.
+* If the routine succeeds we return **0**, else we return **-1** in case of any errors.
